@@ -20,9 +20,17 @@ export interface CouncilModelStats {
   appearances: number;
   totalPromptTokens: number;
   totalCompletionTokens: number;
+  totalEstimatedCost: number;
   totalDurationSeconds: number;
   timedAppearances: number;
   averageDurationSeconds: number;
+}
+
+export interface StageCostBreakdown {
+  agentCost: number;
+  jurorCost: number;
+  chairmanCost: number;
+  totalCost: number;
 }
 
 export interface RunTimelineEntry {
@@ -75,6 +83,9 @@ export interface AnalyticsData {
 
   // Stage timing
   stageTiming: StageTimingStats;
+
+  // Cost breakdown by stage
+  costBreakdown: StageCostBreakdown;
 
   // Provider distribution
   providerCounts: Record<string, number>;
@@ -163,9 +174,14 @@ export function processAnalytics(runs: RunRecord[]): AnalyticsData {
     appearances: number;
     totalPromptTokens: number;
     totalCompletionTokens: number;
+    totalEstimatedCost: number;
     totalDurationSeconds: number;
     timedAppearances: number;
   }>();
+
+  // Stage cost accumulators
+  let totalJurorCost = 0;
+  let totalChairmanCost = 0;
 
   for (const run of runs) {
     const isSuccess = run.agents.some(a => a.status === 'success');
@@ -255,12 +271,16 @@ export function processAnalytics(runs: RunRecord[]): AnalyticsData {
         appearances: 0,
         totalPromptTokens: 0,
         totalCompletionTokens: 0,
+        totalEstimatedCost: 0,
         totalDurationSeconds: 0,
         timedAppearances: 0,
       };
       existing.appearances++;
       existing.totalPromptTokens += s2.usage?.promptTokens ?? 0;
       existing.totalCompletionTokens += s2.usage?.completionTokens ?? 0;
+      const jurorCost = s2.estimatedCost ?? 0;
+      existing.totalEstimatedCost += jurorCost;
+      totalJurorCost += jurorCost;
       const jurorDuration = durationSeconds(s2.startedAt, s2.endedAt);
       if (jurorDuration > 0) {
         existing.totalDurationSeconds += jurorDuration;
@@ -279,12 +299,16 @@ export function processAnalytics(runs: RunRecord[]): AnalyticsData {
         appearances: 0,
         totalPromptTokens: 0,
         totalCompletionTokens: 0,
+        totalEstimatedCost: 0,
         totalDurationSeconds: 0,
         timedAppearances: 0,
       };
       existing.appearances++;
       existing.totalPromptTokens += run.stage3.usage?.promptTokens ?? 0;
       existing.totalCompletionTokens += run.stage3.usage?.completionTokens ?? 0;
+      const chairCost = run.stage3.estimatedCost ?? 0;
+      existing.totalEstimatedCost += chairCost;
+      totalChairmanCost += chairCost;
       const chairmanDuration = durationSeconds(run.stage3.startedAt, run.stage3.endedAt);
       if (chairmanDuration > 0) {
         existing.totalDurationSeconds += chairmanDuration;
@@ -364,6 +388,7 @@ export function processAnalytics(runs: RunRecord[]): AnalyticsData {
       appearances: stats.appearances,
       totalPromptTokens: stats.totalPromptTokens,
       totalCompletionTokens: stats.totalCompletionTokens,
+      totalEstimatedCost: stats.totalEstimatedCost,
       totalDurationSeconds: stats.totalDurationSeconds,
       timedAppearances: stats.timedAppearances,
       averageDurationSeconds: stats.timedAppearances > 0 ? stats.totalDurationSeconds / stats.timedAppearances : 0,
@@ -393,6 +418,12 @@ export function processAnalytics(runs: RunRecord[]): AnalyticsData {
       stage2AvgSeconds: stage2Avg,
       stage3AvgSeconds: stage3Avg,
       totalAvgSeconds: totalAvg,
+    },
+    costBreakdown: {
+      agentCost: totalCost,
+      jurorCost: totalJurorCost,
+      chairmanCost: totalChairmanCost,
+      totalCost: totalCost + totalJurorCost + totalChairmanCost,
     },
     providerCounts,
   };

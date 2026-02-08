@@ -232,6 +232,7 @@ function RunReport({ record }: { record: RunRecord }) {
       totalTokens: s2.usage?.totalTokens ?? 0,
       hasUsage: !!s2.usage,
       duration: fmtDuration(s2.startedAt, s2.endedAt),
+      estimatedCost: s2.estimatedCost ?? 0,
     }));
 
     // Chairman stats
@@ -243,6 +244,7 @@ function RunReport({ record }: { record: RunRecord }) {
       totalTokens: chairmanUsage?.totalTokens ?? 0,
       hasUsage: !!chairmanUsage,
       duration: fmtDuration(record.stage3.startedAt, record.stage3.endedAt),
+      estimatedCost: record.stage3.estimatedCost ?? 0,
     } : null;
 
     // Totals
@@ -256,9 +258,13 @@ function RunReport({ record }: { record: RunRecord }) {
     const totalChairmanPrompt = chairmanStats?.promptTokens ?? 0;
     const totalChairmanCompletion = chairmanStats?.completionTokens ?? 0;
 
+    const totalJurorCost = jurorStats.reduce((s, j) => s + j.estimatedCost, 0);
+    const totalChairmanCost = chairmanStats?.estimatedCost ?? 0;
+
     const grandTotalTokens = totalAgentInput + totalAgentOutput
       + totalJurorPrompt + totalJurorCompletion
       + totalChairmanPrompt + totalChairmanCompletion;
+    const grandTotalCost = totalAgentCost + totalJurorCost + totalChairmanCost;
 
     return {
       agentStats,
@@ -269,9 +275,12 @@ function RunReport({ record }: { record: RunRecord }) {
       totalAgentCost,
       totalJurorPrompt,
       totalJurorCompletion,
+      totalJurorCost,
       totalChairmanPrompt,
       totalChairmanCompletion,
+      totalChairmanCost,
       grandTotalTokens,
+      grandTotalCost,
     };
   }, [record]);
 
@@ -283,35 +292,41 @@ function RunReport({ record }: { record: RunRecord }) {
   return (
     <div className="p-6 space-y-6">
       {/* Grand Total Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div className="bg-bg-surface border border-border-primary rounded-lg p-4">
-          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Total Tokens (All Stages)</div>
-          <div className="text-2xl font-bold font-mono text-green-primary">{fmtTokens(report.grandTotalTokens)}</div>
-        </div>
-        <div className="bg-bg-surface border border-border-primary rounded-lg p-4">
-          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Agent Tokens (Stage 1)</div>
-          <div className="text-2xl font-bold font-mono text-blue-info">
-            {fmtTokens(report.totalAgentInput + report.totalAgentOutput)}
-          </div>
+          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Total Cost (All Stages)</div>
+          <div className="text-2xl font-bold font-mono text-green-primary">{fmtCost(report.grandTotalCost)}</div>
           <div className="text-[10px] text-text-tertiary mt-1">
-            {fmtTokens(report.totalAgentInput)} in · {fmtTokens(report.totalAgentOutput)} out
+            {fmtTokens(report.grandTotalTokens)} tokens
           </div>
         </div>
         <div className="bg-bg-surface border border-border-primary rounded-lg p-4">
-          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Council Tokens (Stage 2+3)</div>
-          <div className="text-2xl font-bold font-mono text-amber-warning">
-            {fmtTokens(
-              report.totalJurorPrompt + report.totalJurorCompletion +
-              report.totalChairmanPrompt + report.totalChairmanCompletion
-            )}
-          </div>
+          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Agent Cost (Stage 1)</div>
+          <div className="text-2xl font-bold font-mono text-blue-info">{fmtCost(report.totalAgentCost)}</div>
           <div className="text-[10px] text-text-tertiary mt-1">
-            {report.jurorStats.length} jurors + 1 chairman
+            {fmtTokens(report.totalAgentInput + report.totalAgentOutput)} tokens
           </div>
         </div>
         <div className="bg-bg-surface border border-border-primary rounded-lg p-4">
-          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Agent Cost</div>
-          <div className="text-2xl font-bold font-mono text-text-primary">{fmtCost(report.totalAgentCost)}</div>
+          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Juror Cost (Stage 2)</div>
+          <div className="text-2xl font-bold font-mono text-amber-warning">{fmtCost(report.totalJurorCost)}</div>
+          <div className="text-[10px] text-text-tertiary mt-1">
+            {fmtTokens(report.totalJurorPrompt + report.totalJurorCompletion)} tokens · {report.jurorStats.length} jurors
+          </div>
+        </div>
+        <div className="bg-bg-surface border border-border-primary rounded-lg p-4">
+          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Chairman Cost (Stage 3)</div>
+          <div className="text-2xl font-bold font-mono text-green-primary/80">{fmtCost(report.totalChairmanCost)}</div>
+          <div className="text-[10px] text-text-tertiary mt-1">
+            {fmtTokens(report.totalChairmanPrompt + report.totalChairmanCompletion)} tokens
+          </div>
+        </div>
+        <div className="bg-bg-surface border border-border-primary rounded-lg p-4">
+          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Total Tokens</div>
+          <div className="text-2xl font-bold font-mono text-text-primary">{fmtTokens(report.grandTotalTokens)}</div>
+          <div className="text-[10px] text-text-tertiary mt-1">
+            {fmtTokens(report.totalAgentInput)} in · {fmtTokens(report.totalAgentOutput)} out (agents)
+          </div>
         </div>
       </div>
 
@@ -380,6 +395,7 @@ function RunReport({ record }: { record: RunRecord }) {
                   <th className="text-right px-3 py-2.5 font-medium">Prompt Tokens</th>
                   <th className="text-right px-3 py-2.5 font-medium">Completion Tokens</th>
                   <th className="text-right px-3 py-2.5 font-medium">Total Tokens</th>
+                  <th className="text-right px-3 py-2.5 font-medium">Cost</th>
                   <th className="text-right px-5 py-2.5 font-medium">Duration</th>
                 </tr>
               </thead>
@@ -400,6 +416,7 @@ function RunReport({ record }: { record: RunRecord }) {
                         Usage data not available for this run
                       </td>
                     )}
+                    <td className="text-right px-3 py-2.5 text-amber-warning">{fmtCost(juror.estimatedCost)}</td>
                     <td className="text-right px-5 py-2.5 text-text-secondary">{juror.duration}</td>
                   </tr>
                 ))}
@@ -411,6 +428,7 @@ function RunReport({ record }: { record: RunRecord }) {
                   <td className="text-right px-3 py-2.5 text-text-primary font-medium">
                     {fmtTokens(report.totalJurorPrompt + report.totalJurorCompletion)}
                   </td>
+                  <td className="text-right px-3 py-2.5 text-amber-warning font-medium">{fmtCost(report.totalJurorCost)}</td>
                   <td className="text-right px-5 py-2.5 text-text-muted">—</td>
                 </tr>
               </tbody>
@@ -434,6 +452,7 @@ function RunReport({ record }: { record: RunRecord }) {
                   <th className="text-right px-3 py-2.5 font-medium">Prompt Tokens</th>
                   <th className="text-right px-3 py-2.5 font-medium">Completion Tokens</th>
                   <th className="text-right px-3 py-2.5 font-medium">Total Tokens</th>
+                  <th className="text-right px-3 py-2.5 font-medium">Cost</th>
                   <th className="text-right px-5 py-2.5 font-medium">Duration</th>
                 </tr>
               </thead>
@@ -453,6 +472,7 @@ function RunReport({ record }: { record: RunRecord }) {
                       Usage data not available for this run
                     </td>
                   )}
+                  <td className="text-right px-3 py-2.5 text-amber-warning">{fmtCost(report.chairmanStats.estimatedCost)}</td>
                   <td className="text-right px-5 py-2.5 text-text-secondary">{report.chairmanStats.duration}</td>
                 </tr>
               </tbody>

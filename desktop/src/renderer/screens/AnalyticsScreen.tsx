@@ -326,8 +326,10 @@ function OverviewTab({ analytics }: { analytics: AnalyticsData }) {
         />
         <StatCard
           label="Total Cost"
-          value={formatCost(analytics.totalCost)}
-          sub={analytics.totalRuns > 0 ? `${formatCost(analytics.totalCost / analytics.totalRuns)} avg/run` : undefined}
+          value={formatCost(analytics.costBreakdown.totalCost)}
+          sub={analytics.totalRuns > 0
+            ? `${formatCost(analytics.costBreakdown.totalCost / analytics.totalRuns)} avg/run (all stages)`
+            : undefined}
           color="text-amber-warning"
         />
         <StatCard
@@ -477,6 +479,7 @@ function ModelsTab({ analytics }: { analytics: AnalyticsData }) {
                   <th className="text-right px-3 py-2.5 font-medium">Uses</th>
                   <th className="text-right px-3 py-2.5 font-medium">Prompt Tokens</th>
                   <th className="text-right px-3 py-2.5 font-medium">Completion Tokens</th>
+                  <th className="text-right px-3 py-2.5 font-medium">Total Cost</th>
                   <th className="text-right px-5 py-2.5 font-medium">Avg Duration</th>
                 </tr>
               </thead>
@@ -498,6 +501,7 @@ function ModelsTab({ analytics }: { analytics: AnalyticsData }) {
                     <td className="text-right px-3 py-2.5 text-text-secondary">{s.appearances}</td>
                     <td className="text-right px-3 py-2.5 text-blue-info">{formatTokenCount(s.totalPromptTokens)}</td>
                     <td className="text-right px-3 py-2.5 text-green-primary">{formatTokenCount(s.totalCompletionTokens)}</td>
+                    <td className="text-right px-3 py-2.5 text-amber-warning">{formatCost(s.totalEstimatedCost)}</td>
                     <td className="text-right px-5 py-2.5 text-text-secondary">{formatDuration(s.averageDurationSeconds)}</td>
                   </tr>
                 ))}
@@ -558,33 +562,92 @@ function CostsTab({ analytics }: { analytics: AnalyticsData }) {
   return (
     <div className="p-6 space-y-6">
       {/* Cost Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <StatCard
-          label="Total Spend"
-          value={formatCost(analytics.totalCost)}
+          label="Total Spend (All Stages)"
+          value={formatCost(analytics.costBreakdown.totalCost)}
+          sub={analytics.totalRuns > 0 ? `${formatCost(analytics.costBreakdown.totalCost / analytics.totalRuns)} avg/run` : undefined}
           color="text-amber-warning"
         />
         <StatCard
+          label="Agent Cost (Stage 1)"
+          value={formatCost(analytics.costBreakdown.agentCost)}
+          color="text-blue-info"
+        />
+        <StatCard
+          label="Juror Cost (Stage 2)"
+          value={formatCost(analytics.costBreakdown.jurorCost)}
+          sub="estimated from model pricing"
+          color="text-amber-warning"
+        />
+        <StatCard
+          label="Chairman Cost (Stage 3)"
+          value={formatCost(analytics.costBreakdown.chairmanCost)}
+          sub="estimated from model pricing"
+          color="text-green-primary"
+        />
+        <StatCard
           label="Avg Cost / Run"
-          value={analytics.totalRuns > 0 ? formatCost(analytics.totalCost / analytics.totalRuns) : '$0.00'}
-        />
-        <StatCard
-          label="Cost / 1k Tokens"
-          value={analytics.totalInputTokens + analytics.totalOutputTokens > 0
-            ? formatCost(analytics.totalCost / ((analytics.totalInputTokens + analytics.totalOutputTokens) / 1000))
-            : '$0.00'}
-          sub="blended average"
-        />
-        <StatCard
-          label="Most Expensive Model"
-          value={analytics.modelStats.length > 0
-            ? analytics.modelStats.reduce((a, b) => a.totalCost > b.totalCost ? a : b).model.split(' · ').pop() ?? '—'
-            : '—'}
-          sub={analytics.modelStats.length > 0
-            ? formatCost(Math.max(...analytics.modelStats.map(s => s.totalCost)))
-            : undefined}
+          value={analytics.totalRuns > 0 ? formatCost(analytics.costBreakdown.totalCost / analytics.totalRuns) : '$0.00'}
+          sub="all stages combined"
         />
       </div>
+
+      {/* Cost Distribution by Stage */}
+      {analytics.costBreakdown.totalCost > 0 && (() => {
+        const { agentCost, jurorCost, chairmanCost, totalCost } = analytics.costBreakdown;
+        const agentPct = (agentCost / totalCost) * 100;
+        const jurorPct = (jurorCost / totalCost) * 100;
+        const chairmanPct = (chairmanCost / totalCost) * 100;
+        return (
+          <div className="bg-bg-surface border border-border-primary rounded-lg p-5">
+            <h3 className="text-xs font-medium text-text-secondary mb-1 tracking-wide">Cost Distribution by Stage</h3>
+            <p className="text-[10px] text-text-muted mb-4">Where your money goes across the pipeline</p>
+            <div className="space-y-3">
+              <div className="h-8 rounded overflow-hidden flex">
+                {agentPct > 0 && (
+                  <div
+                    className="bg-blue-info/50 flex items-center justify-center text-[10px] font-mono text-white"
+                    style={{ width: `${agentPct}%` }}
+                  >
+                    {agentPct > 12 ? `Agents ${agentPct.toFixed(0)}%` : ''}
+                  </div>
+                )}
+                {jurorPct > 0 && (
+                  <div
+                    className="bg-amber-warning/50 flex items-center justify-center text-[10px] font-mono text-white"
+                    style={{ width: `${jurorPct}%` }}
+                  >
+                    {jurorPct > 12 ? `Jurors ${jurorPct.toFixed(0)}%` : ''}
+                  </div>
+                )}
+                {chairmanPct > 0 && (
+                  <div
+                    className="bg-green-primary/50 flex items-center justify-center text-[10px] font-mono text-white"
+                    style={{ width: `${chairmanPct}%` }}
+                  >
+                    {chairmanPct > 12 ? `Chairman ${chairmanPct.toFixed(0)}%` : ''}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-6 text-[10px] font-mono text-text-muted">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-sm bg-blue-info/50" />
+                  Agents: {formatCost(agentCost)} ({agentPct.toFixed(1)}%)
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-sm bg-amber-warning/50" />
+                  Jurors: {formatCost(jurorCost)} ({jurorPct.toFixed(1)}%)
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-sm bg-green-primary/50" />
+                  Chairman: {formatCost(chairmanCost)} ({chairmanPct.toFixed(1)}%)
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Cost per Model */}
       <div className="bg-bg-surface border border-border-primary rounded-lg p-5">

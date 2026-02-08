@@ -71,6 +71,7 @@ export interface Stage2Result {
   usage?: CouncilTokenUsage | null;
   startedAt?: string | null;
   endedAt?: string | null;
+  estimatedCost?: number | null;
 }
 
 export interface Stage3Result {
@@ -79,6 +80,7 @@ export interface Stage3Result {
   usage?: CouncilTokenUsage | null;
   startedAt?: string | null;
   endedAt?: string | null;
+  estimatedCost?: number | null;
 }
 
 export interface AggregateRanking {
