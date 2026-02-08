@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-02-08
+
+### Added
+- `concilium` CLI command — launch the GUI from any project directory (`concilium` or `concilium <path>`)
+- `bin/concilium.js` entry point with `--help`, `--version`, path validation, and dev/prod detection
+- `--cwd` flag support in Electron main process via `app.commandLine`
+- `app:getCwd` IPC handler and `getCwd()` preload API for renderer access
+- Project working directory displayed in HomeScreen action bar with folder icon
+- `"bin"` field in `package.json` for `npm link` support
+- CLI usage instructions in README.md (Step 4: "Run from anywhere")
+- CLI-first "Run from anywhere" step on website GetStarted section
+
+### Changed
+- `registerIpcHandlers` now accepts a `projectCwd` parameter instead of calling `process.cwd()` directly
+- Window title includes project directory basename (`Concilium — <dirname>`)
+- README.md Development section now includes `npm link` / `concilium .` workflow
+- Website Step 5 now features CLI as primary launch method with manual launch as alternative
+
+## [1.1.0] - 2026-02-08
+
+### Added
+- Comprehensive analytics dashboard with per-run reports
+- Per-juror and per-chairman timing metrics
+- Estimated cost tracking for jurors and chairman with total cost overview
+- Tooltips across the UI
+- Analytics section on the marketing website
+
+### Fixed
+- Claude Code parser edge cases
+- Website analytics showcase aligned with actual desktop app
+
+### Changed
+- Updated website `package-lock.json`
+
+## [1.0.1] - 2026-02-07
+
 ### Added
 - Interactive Before/After section on website showing workflow comparison
 - Standardized container widths (`max-w-7xl`) across all sections
@@ -60,3 +96,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - React Three Fiber for React integration
 - OpenRouter API integration
 - Local JSON storage for runs and preferences
+
+[Unreleased]: https://github.com/matiasdaloia/concilium/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/matiasdaloia/concilium/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/matiasdaloia/concilium/compare/v1.0.1...v1.1.0
+[1.0.1]: https://github.com/matiasdaloia/concilium/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/matiasdaloia/concilium/releases/tag/v1.0.0

@@ -25,6 +25,7 @@ interface HomeScreenProps {
 
 export default function HomeScreen({ onStartRun, onOpenAnalytics }: HomeScreenProps) {
   const [prompt, setPrompt] = useState("");
+  const [projectCwd, setProjectCwd] = useState("");
   const [isStarting, setIsStarting] = useState(false);
   const [agentInstances, setAgentInstances] = useState<AgentInstance[]>([]);
   const [modelOptions, setModelOptions] = useState<Record<string, string[]>>({
@@ -50,11 +51,14 @@ export default function HomeScreen({ onStartRun, onOpenAnalytics }: HomeScreenPr
   useEffect(() => {
     const init = async () => {
       try {
-        const [instances, modelInfos, config] = await Promise.all([
+        const [instances, modelInfos, config, cwd] = await Promise.all([
           api.getAgentInstances(),
           api.discoverModels().catch((): AgentModelInfo[] => []),
           api.getConfig(),
+          api.getCwd().catch(() => ""),
         ]);
+
+        setProjectCwd(cwd);
 
         // Build model options and defaults from discovery
         const opts: Record<string, string[]> = {
@@ -407,7 +411,16 @@ export default function HomeScreen({ onStartRun, onOpenAnalytics }: HomeScreenPr
         {/* Action bar */}
         <div className="w-full mt-auto pt-12 border-t border-white/5 pb-8">
           <div className="flex items-center justify-between gap-6">
-            <div className="flex items-center gap-6 text-[11px] text-text-muted font-mono"></div>
+            <div className="flex items-center gap-2 text-[11px] text-text-muted font-mono max-w-[50%] overflow-hidden">
+              {projectCwd && (
+                <>
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                  </svg>
+                  <span className="truncate" title={projectCwd}>{projectCwd}</span>
+                </>
+              )}
+            </div>
             <button
               onClick={handleSubmit}
               disabled={!canRun}

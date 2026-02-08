@@ -79,14 +79,25 @@ npm run build
 
 This will install dependencies and package the application into the `out/` directory.
 
-### 4. Run the application
+### 4. Run from anywhere
 
-Locate the built executable in the `out/` directory:
+Link the CLI to your PATH:
 
-- **macOS:** `open out/Concilium-darwin-arm64/Concilium.app`
-- **Linux:** `./out/Concilium-linux-x64/concilium`
+```bash
+npm link
+```
 
-> The folder name may vary depending on your architecture (e.g., `darwin-x64` for Intel Macs).
+Then open Concilium from any project directory:
+
+```bash
+cd ~/my-project
+concilium              # uses current directory
+concilium ./backend    # or specify a path
+```
+
+The GUI opens with all agents running in your target directory.
+
+> **Manual launch:** You can also run the built executable directly from `out/Concilium-darwin-arm64/Concilium.app` (macOS) or `./out/Concilium-linux-x64/concilium` (Linux).
 
 ## Architecture
 
@@ -142,6 +153,8 @@ llm-council/
 cd desktop
 npm install
 npm run start        # Start development server
+npm link             # Make `concilium` available globally
+concilium .          # Launch Concilium in current dir (dev mode)
 npm run package      # Package the app
 npm run make         # Create distributables
 npm run test         # Run tests

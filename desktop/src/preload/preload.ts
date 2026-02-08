@@ -60,6 +60,9 @@ export interface ElectronAPI {
   getAgentInstances(): Promise<AgentInstance[]>;
   saveAgentInstances(instances: AgentInstance[]): Promise<void>;
   
+  // Project working directory
+  getCwd(): Promise<string>;
+
   // Council configuration
   saveCouncilConfig(config: { chairmanModel?: string; councilModels?: string[]; apiKey?: string }): Promise<{ success: boolean }>;
   fetchOpenRouterModels(apiKey: string): Promise<OpenRouterModelInfo[]>;
@@ -85,6 +88,9 @@ const api: ElectronAPI = {
   getLastOpencodeModel: () => ipcRenderer.invoke('models:lastOpencode'),
   copyToClipboard: (text) => ipcRenderer.invoke('clipboard:copy', text),
   
+  // Project working directory
+  getCwd: () => ipcRenderer.invoke('app:getCwd'),
+
   // Agent instances (dynamic configuration)
   getAgentInstances: () => ipcRenderer.invoke('agents:get'),
   saveAgentInstances: (instances) => ipcRenderer.invoke('agents:save', instances),

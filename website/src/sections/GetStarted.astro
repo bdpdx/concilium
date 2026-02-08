@@ -92,54 +92,65 @@ import SectionHeader from '../components/SectionHeader.astro';
         </p>
       </div>
 
-       <!-- Step 5: Run -->
+       <!-- Step 5: Run from anywhere -->
       <div class="bg-bg-page border border-border-primary rounded-xl p-6 md:p-8 hover:border-border-secondary transition-colors duration-300">
         <div class="flex items-center gap-4 mb-4">
           <div class="w-8 h-8 rounded-full bg-provider-opencode/10 border border-provider-opencode/20 flex items-center justify-center text-provider-opencode font-bold text-sm">5</div>
-          <h3 class="text-lg font-semibold text-text-primary">Run the Application</h3>
+          <h3 class="text-lg font-semibold text-text-primary">Run from anywhere</h3>
         </div>
         <p class="text-sm text-text-secondary mb-4">
-          Locate the built executable in the <code class="text-text-primary bg-white/5 px-1.5 py-0.5 rounded">out/</code> directory.
+          Link the CLI to your PATH, then launch Concilium from any project directory.
         </p>
-        
-        <div class="space-y-4">
-          <!-- macOS -->
-          <div>
-             <span class="text-[10px] text-text-muted uppercase tracking-wider font-semibold mb-1 block">macOS</span>
-             <div class="bg-bg-surface border border-border-secondary rounded-lg p-3 font-mono text-sm text-text-secondary overflow-x-auto">
-              <div class="flex items-center">
-                <span class="select-none text-text-muted mr-3">$</span>
-                <span class="text-text-primary">open out/Concilium-darwin-arm64/Concilium.app</span>
+
+        <div class="bg-bg-surface border border-border-secondary rounded-lg p-4 font-mono text-sm text-text-secondary overflow-x-auto">
+          <div class="flex items-center mb-2">
+            <span class="select-none text-text-muted mr-3">$</span>
+            <span class="text-text-primary">npm link</span>
+          </div>
+          <div class="flex items-center mb-2">
+            <span class="select-none text-text-muted mr-3">$</span>
+            <span class="text-text-primary">cd ~/my-project</span>
+          </div>
+          <div class="flex items-center">
+            <span class="select-none text-text-muted mr-3">$</span>
+            <span class="text-text-primary">concilium</span>
+          </div>
+        </div>
+
+        <p class="mt-4 text-sm text-text-secondary">
+          Or specify a path directly:
+        </p>
+        <div class="bg-bg-surface border border-border-secondary rounded-lg p-4 font-mono text-sm text-text-secondary overflow-x-auto mt-2">
+          <div class="flex items-center">
+            <span class="select-none text-text-muted mr-3">$</span>
+            <span class="text-text-primary">concilium ./backend</span>
+          </div>
+        </div>
+
+        <!-- Alternative: manual launch -->
+        <div class="mt-6 pt-4 border-t border-border-primary">
+          <p class="text-[11px] text-text-muted uppercase tracking-wider font-semibold mb-3">Alternative: manual launch</p>
+          <div class="space-y-3">
+            <div>
+              <span class="text-[10px] text-text-muted uppercase tracking-wider font-semibold mb-1 block">macOS</span>
+              <div class="bg-bg-surface border border-border-secondary rounded-lg p-3 font-mono text-sm text-text-secondary overflow-x-auto">
+                <div class="flex items-center">
+                  <span class="select-none text-text-muted mr-3">$</span>
+                  <span class="text-text-primary">open out/Concilium-darwin-arm64/Concilium.app</span>
+                </div>
               </div>
             </div>
-          </div>
-
-          <!-- Linux -->
-          <div>
-             <span class="text-[10px] text-text-muted uppercase tracking-wider font-semibold mb-1 block">Linux</span>
-             <div class="bg-bg-surface border border-border-secondary rounded-lg p-3 font-mono text-sm text-text-secondary overflow-x-auto">
-              <div class="flex items-center">
-                <span class="select-none text-text-muted mr-3">$</span>
-                <span class="text-text-primary">./out/Concilium-linux-x64/concilium</span>
-              </div>
-            </div>
-          </div>
-
-           <!-- Windows -->
-          <div>
-             <span class="text-[10px] text-text-muted uppercase tracking-wider font-semibold mb-1 block">Windows</span>
-             <div class="bg-bg-surface border border-border-secondary rounded-lg p-3 font-mono text-sm text-text-secondary overflow-x-auto">
-              <div class="flex items-center">
-                <span class="select-none text-text-muted mr-3">&gt;</span>
-                <span class="text-text-primary">.\out\Concilium-win32-x64\Concilium.exe</span>
+            <div>
+              <span class="text-[10px] text-text-muted uppercase tracking-wider font-semibold mb-1 block">Linux</span>
+              <div class="bg-bg-surface border border-border-secondary rounded-lg p-3 font-mono text-sm text-text-secondary overflow-x-auto">
+                <div class="flex items-center">
+                  <span class="select-none text-text-muted mr-3">$</span>
+                  <span class="text-text-primary">./out/Concilium-linux-x64/concilium</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
-
-         <p class="mt-4 text-sm text-text-muted">
-          Note: The folder name may vary depending on your architecture (e.g., <code class="text-xs">darwin-x64</code> for Intel Macs).
-        </p>
       </div>
 
     </div>

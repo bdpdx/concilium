@@ -13,11 +13,18 @@ import { registerIpcHandlers, cancelAllRuns } from './ipc';
 // app.getAppPath() is the most reliable way in Electron; cwd and __dirname
 // can resolve to unexpected locations depending on how the app is launched.
 // In development, we also check process.cwd() as a fallback.
-const envPath = app.isPackaged 
-  ? path.join(app.getAppPath(), '.env') 
+const envPath = app.isPackaged
+  ? path.join(app.getAppPath(), '.env')
   : path.join(process.cwd(), '.env');
 
 loadEnv({ path: envPath });
+
+// Parse --cwd switch passed by the CLI wrapper (bin/concilium.js).
+// Falls back to process.cwd() when launched without the flag.
+const cliCwd = app.commandLine.getSwitchValue('cwd');
+const resolvedProjectCwd = cliCwd?.trim()
+  ? path.resolve(cliCwd.trim())
+  : process.cwd();
 
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
@@ -27,6 +34,7 @@ const createWindow = () => {
     minHeight: 600,
     backgroundColor: '#0C0C0C',
     titleBarStyle: 'hiddenInset',
+    title: `Concilium — ${path.basename(resolvedProjectCwd)}`,
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -35,7 +43,7 @@ const createWindow = () => {
     },
   });
 
-  registerIpcHandlers(mainWindow);
+  registerIpcHandlers(mainWindow, resolvedProjectCwd);
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);

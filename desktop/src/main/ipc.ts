@@ -6,7 +6,6 @@
 
 import { ipcMain, clipboard, type BrowserWindow } from 'electron';
 import { randomUUID } from 'node:crypto';
-import { cwd } from 'node:process';
 import type { AgentConfig, AgentInstance, StartRunConfig, Stage1Result } from './services/types';
 import { 
   getCouncilConfig,
@@ -43,7 +42,7 @@ export function cancelAllRuns() {
   activeControllers.clear();
 }
 
-export function registerIpcHandlers(mainWindow: BrowserWindow) {
+export function registerIpcHandlers(mainWindow: BrowserWindow, projectCwd: string) {
   const send = (channel: string, ...args: unknown[]) => {
     if (!mainWindow.isDestroyed()) {
       mainWindow.webContents.send(channel, ...args);
@@ -88,6 +87,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow) {
     }));
   });
 
+  ipcMain.handle('app:getCwd', () => projectCwd);
+
   ipcMain.handle('storage:listRuns', () => listRuns());
   ipcMain.handle('storage:loadAllRuns', () => loadAllRuns());
   ipcMain.handle('storage:loadRun', (_, runId: string) => loadRun(runId));
@@ -131,7 +132,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow) {
       chairmanModel: config.chairmanModel,
     });
     
-    const workingDir = cwd();
+    const workingDir = projectCwd;
 
     // Build agent configs - prefer new agentInstances format, fallback to legacy
     let agentConfigs: AgentConfig[];
