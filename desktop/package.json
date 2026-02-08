@@ -1,9 +1,12 @@
 {
   "name": "concilium",
   "productName": "Concilium",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Multi-LLM deliberation platform with peer review and synthesis",
   "main": ".vite/build/main.js",
+  "bin": {
+    "concilium": "./bin/concilium.js"
+  },
   "private": true,
   "scripts": {
     "start": "electron-forge start",
