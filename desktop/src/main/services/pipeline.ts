@@ -6,7 +6,8 @@ import type {
   Stage2Result,
   Stage3Result,
 } from './types';
-import { queryModel, queryModelsParallelStreaming } from './openrouter';
+import { queryModel, queryModelsParallelStreaming, getCachedOrFallbackModels } from './openrouter';
+import type { OpenRouterUsage } from './openrouter';
 import { createLogger } from './logger';
 
 const log = createLogger('pipeline');
@@ -131,7 +132,18 @@ Your task as Chairman is to synthesize all of this information into a single, co
 Provide a clear, well-reasoned final answer that represents the council's collective wisdom:`;
 }
 
-import type { OpenRouterUsage } from './openrouter';
+/** Estimate cost in USD from token usage and cached model pricing */
+function estimateCost(modelId: string, usage?: { promptTokens: number; completionTokens: number } | null): number | null {
+  if (!usage) return null;
+  const models = getCachedOrFallbackModels();
+  const model = models.find(m => m.id === modelId);
+  if (!model) return null;
+  // pricing is per 1M tokens
+  const promptCost = (usage.promptTokens / 1_000_000) * model.pricing.prompt;
+  const completionCost = (usage.completionTokens / 1_000_000) * model.pricing.completion;
+  const total = promptCost + completionCost;
+  return total > 0 ? total : null;
+}
 
 export interface CouncilProgressCallbacks {
   onRankingModelStart?: (model: string) => void;
@@ -184,13 +196,23 @@ export async function runCouncilStages(options: {
   log.info('runCouncilStages: STAGE 2 - starting ranking queries');
   log.debug('runCouncilStages: label mapping:', labelToModel);
 
+  // Track per-juror timing via callback wrappers
+  const jurorTimings = new Map<string, { startedAt: string; endedAt?: string }>();
+
   const rankingResponses = await queryModelsParallelStreaming(
     config,
     config.councilModels,
     rankingMessages,
-    callbacks?.onRankingModelStart,
+    (model) => {
+      jurorTimings.set(model, { startedAt: new Date().toISOString() });
+      callbacks?.onRankingModelStart?.(model);
+    },
     callbacks?.onRankingModelChunk,
-    callbacks?.onRankingModelComplete,
+    (model, success, usage) => {
+      const timing = jurorTimings.get(model);
+      if (timing) timing.endedAt = new Date().toISOString();
+      callbacks?.onRankingModelComplete?.(model, success, usage);
+    },
   );
 
   log.debug('runCouncilStages: ranking queries completed, processing results...');
@@ -204,11 +226,17 @@ export async function runCouncilStages(options: {
     }
     const rankingText = response.content;
     const parsed = parseRankingFromText(rankingText);
+    const timing = jurorTimings.get(model);
     log.debug(`runCouncilStages: ${model} ranking parsed:`, parsed);
+    const usage = response.usage ?? null;
     stage2.push({
       model,
       ranking: rankingText,
       parsedRanking: parsed,
+      usage,
+      startedAt: timing?.startedAt ?? null,
+      endedAt: timing?.endedAt ?? null,
+      estimatedCost: estimateCost(model, usage),
     });
   }
 
@@ -235,8 +263,10 @@ export async function runCouncilStages(options: {
 
   const synthesisPrompt = buildSynthesisPrompt(userPrompt, stage1Results, stage2);
   log.debug(`runCouncilStages: synthesis prompt length: ${synthesisPrompt.length} chars`);
-  
+
+  const chairmanStartedAt = new Date().toISOString();
   const synthesis = await queryModel(config, config.chairmanModel, [{ role: 'user', content: synthesisPrompt }], 180_000);
+  const chairmanEndedAt = new Date().toISOString();
 
   if (!synthesis) {
     log.error('runCouncilStages: chairman synthesis failed!');
@@ -244,9 +274,14 @@ export async function runCouncilStages(options: {
     log.info(`runCouncilStages: chairman synthesis complete, length: ${synthesis.content.length} chars`);
   }
 
+  const chairmanUsage = synthesis?.usage ?? null;
   const stage3: Stage3Result = {
     model: config.chairmanModel,
     response: synthesis?.content ?? 'Error: Unable to generate final synthesis from chairman model.',
+    usage: chairmanUsage,
+    startedAt: chairmanStartedAt,
+    endedAt: chairmanEndedAt,
+    estimatedCost: estimateCost(config.chairmanModel, chairmanUsage),
   };
 
   log.info('runCouncilStages: pipeline complete');

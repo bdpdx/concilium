@@ -1,3 +1,4 @@
+import Tooltip from './Tooltip';
 import type { AggregateRanking } from '../types';
 
 interface LeaderboardProps {
@@ -24,9 +25,11 @@ export default function Leaderboard({ rankings }: LeaderboardProps) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-0.5">
                   <div className="flex items-center gap-2">
-                    <span className={`text-xs truncate ${isFirst ? 'text-green-primary font-medium' : 'text-text-primary'}`}>
-                      {ranking.model}
-                    </span>
+                    <Tooltip text={ranking.model}>
+                      <span className={`text-xs truncate block ${isFirst ? 'text-green-primary font-medium' : 'text-text-primary'}`}>
+                        {ranking.model}
+                      </span>
+                    </Tooltip>
                     {isFirst && (
                       <span className="text-[9px] bg-green-primary/20 text-green-primary px-1.5 py-0.5 rounded-full font-medium uppercase tracking-wide">
                         Top
