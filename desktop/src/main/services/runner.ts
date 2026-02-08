@@ -161,19 +161,19 @@ function runProcess(options: {
 
     const handleLine = (line: string) => {
       rawOutput.push(line);
-      const parsed = parseEventLine(agentId, line);
-      if (!parsed) return;
+      const parsedEvents = parseEventLine(agentId, line);
+      for (const parsed of parsedEvents) {
+        // Log timing for the first few parsed events to diagnose streaming latency.
+        if (events.length < 3) {
+          const elapsed = Date.now() - spawnedAt;
+          log.debug(`runProcess: ${name} event #${events.length} at +${elapsed}ms: type=${parsed.eventType}`);
+        }
 
-      // Log timing for the first few parsed events to diagnose streaming latency.
-      if (events.length < 3) {
-        const elapsed = Date.now() - spawnedAt;
-        log.debug(`runProcess: ${name} event #${events.length} at +${elapsed}ms: type=${parsed.eventType}`);
+        events.push(parsed);
+        callbacks.onEvent?.(agentKey, parsed);
+        if (parsed.eventType === 'text') planFragments.push(parsed.text);
+        if (parsed.eventType === 'raw' && line.toLowerCase().includes('error')) errors.push(line);
       }
-
-      events.push(parsed);
-      callbacks.onEvent?.(agentKey, parsed);
-      if (parsed.eventType === 'text') planFragments.push(parsed.text);
-      if (parsed.eventType === 'raw' && line.toLowerCase().includes('error')) errors.push(line);
     };
 
     if (child.stdout) {

@@ -4,6 +4,7 @@ import Leaderboard from '../components/Leaderboard';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import Button from '../components/Button';
 import Badge from '../components/Badge';
+import Tooltip from '../components/Tooltip';
 import { api } from '../api';
 import type { RunRecord, TokenUsage, CouncilTokenUsage, ParsedEvent } from '../types';
 
@@ -355,8 +356,8 @@ function RunReport({ record }: { record: RunRecord }) {
                 const barPct = maxAgentTokens > 0 ? (totalTok / maxAgentTokens) * 100 : 0;
                 return (
                   <tr key={i} className="border-b border-border-primary/50">
-                    <td className="px-5 py-2.5 text-text-primary font-medium truncate max-w-[200px]" title={agent.name}>
-                      {agent.name}
+                    <td className="px-5 py-2.5 text-text-primary font-medium truncate max-w-[200px]">
+                      <Tooltip text={agent.name}>{agent.name}</Tooltip>
                     </td>
                     <td className="text-center px-3 py-2.5">
                       <Badge variant={agent.status === 'success' ? 'green' : agent.status === 'error' ? 'red' : 'muted'}>
@@ -402,8 +403,8 @@ function RunReport({ record }: { record: RunRecord }) {
               <tbody>
                 {report.jurorStats.map((juror, i) => (
                   <tr key={i} className="border-b border-border-primary/50">
-                    <td className="px-5 py-2.5 text-text-primary font-medium truncate max-w-[250px]" title={juror.model}>
-                      {juror.model}
+                    <td className="px-5 py-2.5 text-text-primary font-medium truncate max-w-[250px]">
+                      <Tooltip text={juror.model}>{juror.model}</Tooltip>
                     </td>
                     {juror.hasUsage ? (
                       <>
@@ -458,8 +459,8 @@ function RunReport({ record }: { record: RunRecord }) {
               </thead>
               <tbody>
                 <tr className="border-b border-border-primary/50">
-                  <td className="px-5 py-2.5 text-text-primary font-medium truncate max-w-[250px]" title={report.chairmanStats.model}>
-                    {report.chairmanStats.model}
+                  <td className="px-5 py-2.5 text-text-primary font-medium truncate max-w-[250px]">
+                    <Tooltip text={report.chairmanStats.model}>{report.chairmanStats.model}</Tooltip>
                   </td>
                   {report.chairmanStats.hasUsage ? (
                     <>

@@ -35,22 +35,22 @@ function extractTokenUsage(obj: Record<string, unknown>): TokenUsage | null {
   return { inputTokens, outputTokens, totalCost: cost > 0 ? cost : null };
 }
 
-export function parseEventLine(agentId: AgentId, line: string): ParsedEvent | null {
+export function parseEventLine(agentId: AgentId, line: string): ParsedEvent[] {
   const trimmed = line.trim();
-  if (!trimmed) return null;
+  if (!trimmed) return [];
 
   let payload: unknown;
   try {
     payload = JSON.parse(trimmed);
   } catch {
     const cleaned = stripAnsi(trimmed);
-    if (!cleaned) return null;
+    if (!cleaned) return [];
     // For OpenCode, check if this is a share link before falling back to raw
     if (agentId === 'opencode') {
       const shareLink = parseOpenCodeShareLink(cleaned);
-      if (shareLink) return shareLink;
+      if (shareLink) return [shareLink];
     }
-    return { eventType: 'raw', text: cleaned, rawLine: line };
+    return [{ eventType: 'raw', text: cleaned, rawLine: line }];
   }
 
   if (agentId === 'codex') return parseCodexEvent(payload, line);
@@ -62,37 +62,37 @@ function ev(eventType: EventType, text: string, rawLine: string, tokenUsage?: To
   return { eventType, text, rawLine, tokenUsage };
 }
 
-function parseCodexEvent(payload: unknown, rawLine: string): ParsedEvent | null {
+function parseCodexEvent(payload: unknown, rawLine: string): ParsedEvent[] {
   const event = asRecord(payload);
   const eventType = asString(event.type);
 
-  if (['thread.started', 'turn.started', 'thread.completed'].includes(eventType)) return null;
+  if (['thread.started', 'turn.started', 'thread.completed'].includes(eventType)) return [];
   if (eventType === 'turn.completed') {
     // Codex turn.completed usage is a cumulative running total
     const parsed = ev('status', 'Turn completed', rawLine, extractTokenUsage(event));
     parsed.tokenUsageCumulative = true;
-    return parsed;
+    return [parsed];
   }
-  if (eventType === 'error') return { eventType: 'raw' as EventType, text: `Error: ${asString(event.message) || 'unknown error'}`, rawLine };
+  if (eventType === 'error') return [{ eventType: 'raw' as EventType, text: `Error: ${asString(event.message) || 'unknown error'}`, rawLine }];
   if (eventType === 'turn.failed') {
     const err = asRecord(event.error);
-    return ev('status', `Failed: ${asString(err.message)}`, rawLine);
+    return [ev('status', `Failed: ${asString(err.message)}`, rawLine)];
   }
 
   if (eventType === 'item.started') {
     const item = asRecord(event.item);
     const itemType = asString(item.type);
-    if (itemType === 'reasoning') return ev('thinking', 'Reasoning...', rawLine);
+    if (itemType === 'reasoning') return [ev('thinking', 'Reasoning...', rawLine)];
     if (itemType === 'command_execution') {
       const command = asString(item.command);
-      return ev('tool_call', command ? `Running: ${truncateLabel(command, 80)}` : 'Running command...', rawLine);
+      return [ev('tool_call', command ? `Running: ${truncateLabel(command, 80)}` : 'Running command...', rawLine)];
     }
     if (itemType === 'function_call') {
       const name = asString(item.name);
-      return ev('tool_call', name ? `Tool: ${name}` : 'Tool call', rawLine);
+      return [ev('tool_call', name ? `Tool: ${name}` : 'Tool call', rawLine)];
     }
-    if (itemType === 'message') return ev('status', 'Generating response...', rawLine);
-    return null;
+    if (itemType === 'message') return [ev('status', 'Generating response...', rawLine)];
+    return [];
   }
 
   if (eventType === 'item.completed') {
@@ -104,20 +104,20 @@ function parseCodexEvent(payload: unknown, rawLine: string): ParsedEvent | null 
       const content = item.content;
       if (Array.isArray(content)) {
         const text = content.map((part) => asString(asRecord(part).text)).join('\n').trim();
-        if (text) return ev('text', text, rawLine, tokenUsage);
+        if (text) return [ev('text', text, rawLine, tokenUsage)];
       }
-      return ev('status', 'Message completed', rawLine, tokenUsage);
+      return [ev('status', 'Message completed', rawLine, tokenUsage)];
     }
 
     if (itemType === 'reasoning') {
       const text = asString(item.text);
-      if (text) return ev('thinking', text, rawLine, tokenUsage);
+      if (text) return [ev('thinking', text, rawLine, tokenUsage)];
       const summary = item.summary;
       if (Array.isArray(summary)) {
         const summaryText = summary.map((s) => asString(asRecord(s).text)).join('\n').trim();
-        if (summaryText) return ev('thinking', summaryText, rawLine, tokenUsage);
+        if (summaryText) return [ev('thinking', summaryText, rawLine, tokenUsage)];
       }
-      return ev('thinking', 'Reasoning completed', rawLine, tokenUsage);
+      return [ev('thinking', 'Reasoning completed', rawLine, tokenUsage)];
     }
 
     if (itemType === 'command_execution') {
@@ -128,12 +128,12 @@ function parseCodexEvent(payload: unknown, rawLine: string): ParsedEvent | null 
       if (status === 'completed' && exitCode != null) {
         label += exitCode === 0 ? ' \u2713' : ` (exit ${exitCode})`;
       }
-      return ev('tool_call', label, rawLine, tokenUsage);
+      return [ev('tool_call', label, rawLine, tokenUsage)];
     }
 
     if (itemType === 'agent_message') {
       const text = asString(item.text);
-      return text ? ev('text', text, rawLine, tokenUsage) : ev('status', 'Agent response received', rawLine, tokenUsage);
+      return text ? [ev('text', text, rawLine, tokenUsage)] : [ev('status', 'Agent response received', rawLine, tokenUsage)];
     }
 
     if (itemType === 'function_call') {
@@ -149,14 +149,14 @@ function parseCodexEvent(payload: unknown, rawLine: string): ParsedEvent | null 
           }
         } catch { /* ignore */ }
       }
-      return ev('tool_call', label, rawLine, tokenUsage);
+      return [ev('tool_call', label, rawLine, tokenUsage)];
     }
 
-    if (itemType === 'function_call_output') return ev('status', 'Tool completed', rawLine, tokenUsage);
-    return ev('status', `${itemType || 'Item'} completed`, rawLine, tokenUsage);
+    if (itemType === 'function_call_output') return [ev('status', 'Tool completed', rawLine, tokenUsage)];
+    return [ev('status', `${itemType || 'Item'} completed`, rawLine, tokenUsage)];
   }
 
-  return null;
+  return [];
 }
 
 function extractClaudeUsage(obj: Record<string, unknown>): TokenUsage | null {
@@ -172,18 +172,18 @@ function extractClaudeUsage(obj: Record<string, unknown>): TokenUsage | null {
   return { inputTokens, outputTokens, totalCost: cost > 0 ? cost : null };
 }
 
-function parseClaudeEvent(payload: unknown, rawLine: string): ParsedEvent | null {
+function parseClaudeEvent(payload: unknown, rawLine: string): ParsedEvent[] {
   const event = asRecord(payload);
   const eventType = asString(event.type);
 
-  if (eventType === 'system') return null;
+  if (eventType === 'system') return [];
   if (eventType === 'stream_event') return parseClaudeStreamEvent(asRecord(event.event), rawLine);
 
-  // Skip 'assistant' events — they duplicate content already received via
-  // stream_event deltas (content_block_start / content_block_delta).
-  // Processing both causes every text block and tool call to appear twice.
+  // In --print mode, Claude emits turn-level 'assistant' events instead of
+  // granular stream_event deltas. Extract tool calls, thinking blocks, and
+  // status from the message content so the UI can show progress in real time.
   if (eventType === 'assistant') {
-    return null;
+    return parseClaudeAssistantEvent(event, rawLine);
   }
 
   if (eventType === 'result') {
@@ -194,47 +194,98 @@ function parseClaudeEvent(payload: unknown, rawLine: string): ParsedEvent | null
       ? ev('text', resultText, rawLine, tokenUsage)
       : ev('status', asString(event.subtype) === 'error' ? 'Run failed' : 'Run completed', rawLine, tokenUsage);
     base.tokenUsageCumulative = true;
-    return base;
+    return [base];
   }
 
-  return null;
+  return [];
 }
 
-function parseClaudeStreamEvent(inner: Record<string, unknown>, rawLine: string): ParsedEvent | null {
+/** Parse a Claude --print mode 'assistant' event into multiple semantic events.
+ *  Each turn emits one assistant event whose message.content is an array of
+ *  content blocks (thinking, tool_use, text). We fan these out into individual
+ *  ParsedEvents so the UI can show progress between turns. */
+function parseClaudeAssistantEvent(event: Record<string, unknown>, rawLine: string): ParsedEvent[] {
+  const message = asRecord(event.message);
+  const content = message.content;
+  if (!Array.isArray(content)) return [];
+
+  const events: ParsedEvent[] = [];
+  const tokenUsage = extractClaudeUsage(message);
+
+  for (const block of content) {
+    const b = asRecord(block);
+    const blockType = asString(b.type);
+
+    if (blockType === 'tool_use') {
+      const name = asString(b.name);
+      const input = asRecord(b.input);
+      let label = name ? `Tool: ${name}` : 'Tool use';
+      // Append key input fields for context (same pattern as Codex/OpenCode)
+      const filePath = asString(input.file_path) || asString(input.path);
+      const command = asString(input.command);
+      if (command) label += ` -> ${truncateLabel(command, 60)}`;
+      else if (filePath) label += ` -> ${truncateLabel(filePath, 60)}`;
+      events.push(ev('tool_call', label, rawLine));
+    } else if (blockType === 'thinking') {
+      const text = asString(b.thinking);
+      events.push(ev('thinking', text || 'Thinking...', rawLine));
+    }
+    // Skip 'text' blocks — the final 'result' event carries the complete
+    // text output. Emitting text here would cause duplicate content.
+  }
+
+  // Emit a status event based on stop_reason so the UI shows turn boundaries
+  const stopReason = asString(message.stop_reason);
+  if (stopReason === 'tool_use') {
+    events.push(ev('status', 'Executing tools...', rawLine, tokenUsage));
+  } else if (stopReason) {
+    events.push(ev('status', `Turn completed (${stopReason})`, rawLine, tokenUsage));
+  } else if (events.length === 0) {
+    // Fallback: assistant event with no recognized blocks
+    events.push(ev('status', 'Processing...', rawLine, tokenUsage));
+  } else if (tokenUsage) {
+    // Attach usage to the last event if we have it
+    events[events.length - 1].tokenUsage = tokenUsage;
+  }
+
+  return events;
+}
+
+function parseClaudeStreamEvent(inner: Record<string, unknown>, rawLine: string): ParsedEvent[] {
   const eventType = asString(inner.type);
   if (eventType === 'content_block_start') {
     const block = asRecord(inner.content_block);
     const blockType = asString(block.type);
     if (blockType === 'tool_use') {
       const name = asString(block.name);
-      return ev('tool_call', name ? `Tool: ${name}` : 'Tool use', rawLine);
+      return [ev('tool_call', name ? `Tool: ${name}` : 'Tool use', rawLine)];
     }
-    if (blockType === 'thinking') return ev('thinking', 'Thinking...', rawLine);
-    return null;
+    if (blockType === 'thinking') return [ev('thinking', 'Thinking...', rawLine)];
+    return [];
   }
   if (eventType === 'content_block_delta') {
     const delta = asRecord(inner.delta);
     const deltaType = asString(delta.type);
     if (deltaType === 'text_delta') {
       const text = asString(delta.text);
-      return text ? ev('text', text, rawLine) : null;
+      return text ? [ev('text', text, rawLine)] : [];
     }
     if (deltaType === 'thinking_delta') {
       const thinking = asString(delta.thinking);
-      return thinking ? ev('thinking', thinking, rawLine) : null;
+      return thinking ? [ev('thinking', thinking, rawLine)] : [];
     }
-    return null;
+    return [];
   }
   if (eventType === 'message_delta') {
     const delta = asRecord(inner.delta);
     const stopReason = asString(delta.stop_reason);
-    if (stopReason === 'tool_use') return ev('status', 'Executing tools...', rawLine);
-    if (stopReason) return ev('status', `Response complete (${stopReason})`, rawLine);
+    if (stopReason === 'tool_use') return [ev('status', 'Executing tools...', rawLine)];
+    if (stopReason) return [ev('status', `Response complete (${stopReason})`, rawLine)];
   }
-  return null;
+  return [];
 }
 
-function parseOpenCodeEvent(payload: unknown, rawLine: string): ParsedEvent | null {
+function parseOpenCodeEvent(payload: unknown, rawLine: string): ParsedEvent[] {
   const event = asRecord(payload);
   let eventType = asString(event.type);
 
@@ -256,7 +307,7 @@ function parseOpenCodeEvent(payload: unknown, rawLine: string): ParsedEvent | nu
 
   if (eventType === 'reasoning') {
     const text = asString(part.text);
-    return ev('thinking', text || 'Reasoning...', rawLine);
+    return [ev('thinking', text || 'Reasoning...', rawLine)];
   }
 
   if (eventType === 'tool_use') {
@@ -289,12 +340,12 @@ function parseOpenCodeEvent(payload: unknown, rawLine: string): ParsedEvent | nu
       label += ` (${statusText})`;
     }
 
-    return ev('tool_call', label, rawLine);
+    return [ev('tool_call', label, rawLine)];
   }
 
   if (eventType === 'text') {
     const text = asString(part.text);
-    return text ? ev('text', text, rawLine) : null;
+    return text ? [ev('text', text, rawLine)] : [];
   }
 
   if (eventType === 'step_finish') {
@@ -314,26 +365,26 @@ function parseOpenCodeEvent(payload: unknown, rawLine: string): ParsedEvent | nu
     }
     // Include reason in status text when available
     const statusText = reason ? `Step completed (${reason})` : 'Step completed';
-    return ev('status', statusText, rawLine, tokenUsage);
+    return [ev('status', statusText, rawLine, tokenUsage)];
   }
 
   if (eventType === 'step_start') {
     // Emit status event instead of returning null
-    return ev('status', 'Step started', rawLine);
+    return [ev('status', 'Step started', rawLine)];
   }
 
   if (eventType === 'error') {
     const msg = asString(event.message) || asString(part.text) || asString(event.error);
-    return { eventType: 'raw' as EventType, text: `Error: ${msg || 'unknown error'}`, rawLine };
+    return [{ eventType: 'raw' as EventType, text: `Error: ${msg || 'unknown error'}`, rawLine }];
   }
 
   // Catch-all: surface unknown event types instead of silently dropping them
   if (eventType) {
     const text = asString(part.text) || asString(event.message);
-    if (text) return ev('text', text, rawLine);
-    return ev('status', `[${eventType}]`, rawLine);
+    if (text) return [ev('text', text, rawLine)];
+    return [ev('status', `[${eventType}]`, rawLine)];
   }
-  return null;
+  return [];
 }
 
 /** Parse OpenCode share link from non-JSON output line */

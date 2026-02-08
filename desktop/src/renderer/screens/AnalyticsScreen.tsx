@@ -3,6 +3,7 @@ import { api } from '../api';
 import TitleBar from '../components/TitleBar';
 import Button from '../components/Button';
 import Badge from '../components/Badge';
+import Tooltip from '../components/Tooltip';
 import type { RunRecord } from '../types';
 import {
   processAnalytics,
@@ -42,9 +43,11 @@ function HBar({ label, value, maxValue, barColor, displayValue }: {
   const pct = maxValue > 0 ? (value / maxValue) * 100 : 0;
   return (
     <div className="flex items-center gap-3 py-1.5">
-      <span className="text-[11px] text-text-secondary font-mono truncate w-40 shrink-0" title={label}>
-        {label}
-      </span>
+      <Tooltip text={label}>
+        <span className="text-[11px] text-text-secondary font-mono truncate w-40 shrink-0 block">
+          {label}
+        </span>
+      </Tooltip>
       <div className="flex-1 h-5 bg-border-primary/30 rounded overflow-hidden relative">
         <div
           className={`h-full rounded ${barColor} transition-all duration-500`}
@@ -88,9 +91,11 @@ function GroupedBarChart({ data, maxValue }: {
                 />
               </div>
             </div>
-            <span className="text-[9px] text-text-muted font-mono truncate w-full text-center" title={d.label}>
-              {d.label.length > 16 ? d.label.slice(0, 14) + '...' : d.label}
-            </span>
+            <Tooltip text={d.label} className="w-full">
+              <span className="text-[9px] text-text-muted font-mono truncate w-full text-center block">
+                {d.label.length > 16 ? d.label.slice(0, 14) + '...' : d.label}
+              </span>
+            </Tooltip>
           </div>
         );
       })}
@@ -406,8 +411,8 @@ function ModelsTab({ analytics }: { analytics: AnalyticsData }) {
             <tbody>
               {analytics.modelStats.map((s, i) => (
                 <tr key={s.model} className={`border-b border-border-primary/50 ${i % 2 === 0 ? 'bg-bg-surface' : 'bg-bg-page/30'}`}>
-                  <td className="px-5 py-2.5 text-text-primary font-medium truncate max-w-[200px]" title={s.model}>
-                    {s.model}
+                  <td className="px-5 py-2.5 text-text-primary font-medium truncate max-w-[200px]">
+                    <Tooltip text={s.model}>{s.model}</Tooltip>
                   </td>
                   <td className="text-right px-3 py-2.5 text-text-secondary">{s.runs}</td>
                   <td className="text-right px-3 py-2.5 text-blue-info">{formatTokenCount(s.totalInputTokens)}</td>
@@ -486,8 +491,8 @@ function ModelsTab({ analytics }: { analytics: AnalyticsData }) {
               <tbody>
                 {analytics.councilModelStats.map((s, i) => (
                   <tr key={`${s.role}-${s.model}`} className={`border-b border-border-primary/50 ${i % 2 === 0 ? 'bg-bg-surface' : 'bg-bg-page/30'}`}>
-                    <td className="px-5 py-2.5 text-text-primary font-medium truncate max-w-[200px]" title={s.model}>
-                      {s.model}
+                    <td className="px-5 py-2.5 text-text-primary font-medium truncate max-w-[200px]">
+                      <Tooltip text={s.model}>{s.model}</Tooltip>
                     </td>
                     <td className="text-center px-3 py-2.5">
                       <span className={`inline-block px-2 py-0.5 rounded text-[9px] uppercase tracking-wider ${
@@ -823,10 +828,12 @@ function PerformanceTab({ analytics }: { analytics: AnalyticsData }) {
                     return (
                       <tr key={s.model} className="border-b border-border-primary/50">
                         <td className="px-4 py-2 text-text-primary truncate max-w-[200px]">
-                          <span className="flex items-center gap-2">
-                            <span className={`text-[10px] ${i === 0 ? 'text-green-primary' : 'text-text-muted'}`}>#{i + 1}</span>
-                            {s.model}
-                          </span>
+                          <Tooltip text={s.model}>
+                            <span className="flex items-center gap-2">
+                              <span className={`text-[10px] ${i === 0 ? 'text-green-primary' : 'text-text-muted'}`}>#{i + 1}</span>
+                              {s.model}
+                            </span>
+                          </Tooltip>
                         </td>
                         <td className="text-right px-4 py-2 text-text-secondary">{s.averageRank.toFixed(2)}</td>
                         <td className="text-right px-4 py-2 text-text-muted">{s.totalRankings}</td>
