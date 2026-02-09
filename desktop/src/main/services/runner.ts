@@ -39,7 +39,16 @@ export class RunController {
     this.cancelled = true;
     for (const [, child] of this.agentProcesses) {
       const pid = child.pid;
-      if (!pid) continue;
+      if (!pid) {
+        // SDK-based agents use pseudo-children without a pid.
+        // Calling kill() triggers their AbortController.
+        try {
+          child.kill();
+        } catch {
+          /* ignore */
+        }
+        continue;
+      }
       try {
         process.kill(-pid, "SIGTERM");
       } catch {

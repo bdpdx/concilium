@@ -37,6 +37,7 @@ type StreamChunk =
 function groupEvents(events: ParsedEvent[], showRawDetails: boolean): StreamChunk[] {
   const chunks: StreamChunk[] = [];
   let mdBuffer = '';
+  let thinkingBuffer = '';
 
   const flushMd = () => {
     if (mdBuffer) {
@@ -45,25 +46,38 @@ function groupEvents(events: ParsedEvent[], showRawDetails: boolean): StreamChun
     }
   };
 
+  const flushThinking = () => {
+    if (thinkingBuffer) {
+      chunks.push({ kind: 'thinking', text: thinkingBuffer });
+      thinkingBuffer = '';
+    }
+  };
+
+  const flushAll = () => {
+    flushMd();
+    flushThinking();
+  };
+
   for (const ev of events) {
     switch (ev.eventType) {
       case 'text':
+        flushThinking();
         mdBuffer += ev.text;
-        break;
-      case 'tool_call':
-        flushMd();
-        chunks.push({ kind: 'tool', text: ev.text });
         break;
       case 'thinking':
         flushMd();
-        chunks.push({ kind: 'thinking', text: ev.text });
+        thinkingBuffer += ev.text;
+        break;
+      case 'tool_call':
+        flushAll();
+        chunks.push({ kind: 'tool', text: ev.text });
         break;
       case 'status':
-        flushMd();
+        flushAll();
         chunks.push({ kind: 'status', text: ev.text });
         break;
       default: {
-        flushMd();
+        flushAll();
         // Check if it looks like an error
         const lower = ev.rawLine?.toLowerCase() ?? '';
         if (lower.includes('error') || lower.includes('fail')) {
@@ -76,7 +90,7 @@ function groupEvents(events: ParsedEvent[], showRawDetails: boolean): StreamChun
       }
     }
   }
-  flushMd();
+  flushAll();
   return chunks;
 }
 

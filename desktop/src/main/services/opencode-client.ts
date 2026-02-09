@@ -319,13 +319,42 @@ async function streamSessionEvents(options: {
 
   const { stream } = await client.event.subscribe();
 
-  for await (const event of stream) {
-    // Check abort
+  // Build a promise that resolves when the abort signal fires so we can
+  // race it against the stream iterator.  A plain `for await` loop only
+  // checks the signal when the next event arrives — if the stream is idle
+  // the loop blocks indefinitely and the agent never terminates.
+  const abortPromise = new Promise<{ done: true; value: undefined }>((resolve) => {
     if (options.abortSignal?.aborted) {
-      log.info(`streamSessionEvents: aborted for ${agentKey}`);
+      resolve({ done: true, value: undefined });
+      return;
+    }
+    options.abortSignal?.addEventListener(
+      "abort",
+      () => resolve({ done: true, value: undefined }),
+      { once: true },
+    );
+  });
+
+  // Track which messageIDs belong to assistant messages so we can skip
+  // the user's prompt text.  Assistant messages always contain assistant-only
+  // part types (step-start, reasoning, tool, etc.) whereas user messages
+  // only ever contain "text" parts.
+  const assistantMessageIds = new Set<string>();
+
+  const iterator = stream[Symbol.asyncIterator]();
+
+  while (true) {
+    // Race the next stream event against the abort signal
+    const result = await Promise.race([iterator.next(), abortPromise]);
+
+    if (result.done || options.abortSignal?.aborted) {
+      if (options.abortSignal?.aborted) {
+        log.info(`streamSessionEvents: aborted for ${agentKey}`);
+      }
       break;
     }
 
+    const event = result.value;
     const typedEvent = event as Record<string, unknown>;
     const eventType = typedEvent.type as string;
 
@@ -340,6 +369,20 @@ async function streamSessionEvents(options: {
 
       // Only process parts for our session
       if ("sessionID" in part && part.sessionID !== sessionId) continue;
+
+      // All Part variants carry messageID — extract it for user/assistant filtering
+      const partRecord = part as unknown as Record<string, unknown>;
+      const messageID = typeof partRecord.messageID === "string" ? partRecord.messageID : undefined;
+
+      // Register assistant messages when we see assistant-only part types
+      if (messageID && part.type !== "text") {
+        assistantMessageIds.add(messageID);
+      }
+
+      // Skip text parts from the user message (the initial prompt)
+      if (part.type === "text" && messageID && !assistantMessageIds.has(messageID)) {
+        continue;
+      }
 
       const parsed = parsePartToEvent(part, delta);
       if (parsed.length > 0) {
