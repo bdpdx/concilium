@@ -3,7 +3,7 @@ import { createInterface } from 'node:readline';
 import type { AgentConfig, AgentResult, AgentStatus, ParsedEvent } from './types';
 import { buildClaudeCommand, mergedEnv } from './commands';
 import { parseClaudeEventLine } from './parsers';
-import { runOpenCodeSdk } from './opencode-client';
+import { runOpenCodeSdk, ensureOpenCodeServer } from './opencode-client';
 import { runCodexSdk } from './codex-client';
 import { createLogger } from './logger';
 
@@ -351,11 +351,10 @@ export const DEFAULT_AGENT_MODELS: Record<string, string> = {
 
 /**
  * Discover available OpenCode models via the SDK.
- * Requires an OpenCode server to be running (initialized at app startup).
+ * Waits for the server that was initialized at app startup.
  */
 export async function discoverOpenCodeModels(): Promise<string[]> {
   try {
-    const { ensureOpenCodeServer } = await import('./opencode-client');
     const { client } = await ensureOpenCodeServer({});
     const providersRes = await client.config.providers();
     const providers = providersRes.data;
@@ -373,6 +372,13 @@ export async function discoverOpenCodeModels(): Promise<string[]> {
           }
         }
       }
+    }
+
+    log.info(`discoverOpenCodeModels: found ${models.length} models`);
+    if (models.length > 0) {
+      log.debug('discoverOpenCodeModels: models:', models);
+    } else {
+      log.warn('discoverOpenCodeModels: no models found — check OpenCode provider configuration');
     }
 
     return models.sort();

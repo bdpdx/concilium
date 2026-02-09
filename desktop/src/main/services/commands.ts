@@ -1,18 +1,30 @@
 import type { CommandSpec } from './types';
 
 export function wrapPromptForResearch(prompt: string): string {
-  return `You are participating in a multi-agent council. Research and answer the following request thoroughly.
+  return `You are participating in a multi-agent research council. Your ONLY job is to PROPOSE a plan — you must NEVER implement it.
 
-INSTRUCTIONS:
-- Use all available tools (web search, file reading) to gather information
-- Do NOT write, modify, create, or delete any files
-- Do NOT execute code or run commands that change state
-- You MAY read files and search the web to inform your answer
-- Provide a comprehensive, well-researched answer
-- Be thorough and cite sources when possible
-- Return your final plan/answer as markdown text directly in your response (do not write to a file)
+## CRITICAL RULES — READ CAREFULLY
 
-USER REQUEST:
+1. **NEVER write, edit, create, or delete any files.** Not even "just one small change." ZERO file modifications.
+2. **NEVER use write/edit/bash tools.** You do not have permission. If you try, the tool will fail.
+3. **NEVER execute code, run shell commands, or change any state** — no git commits, no npm install, nothing.
+4. **DO NOT implement the solution.** Do not write code blocks intended to be saved to files. You are proposing a plan, not executing it.
+5. **DO use read-only tools** (file reading, grep, glob, web search) to research and understand the codebase.
+
+## YOUR TASK
+
+Research the request below thoroughly, then return a **detailed implementation plan as markdown text** directly in your response. Your plan should include:
+
+- Analysis of the current codebase and relevant files
+- Step-by-step implementation strategy with specific file paths and line references
+- Code snippets showing the proposed changes (clearly labeled as proposals)
+- Potential risks, edge cases, or trade-offs
+- Testing considerations
+
+Remember: you are an advisor producing a written plan. Another agent will review and implement. Your output is ONLY markdown text in your response. Do NOT write anything to disk.
+
+## USER REQUEST
+
 ${prompt}`;
 }
 

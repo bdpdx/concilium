@@ -66,29 +66,42 @@ export interface OpenCodeSdkConfig {
 // ── Server lifecycle ──────────────────────────────────────────────────
 
 let embeddedServer: OpenCodeServerHandle | null = null;
+let initPromise: Promise<{ client: OpencodeClient; serverHandle: OpenCodeServerHandle | null }> | null = null;
+let externalUrl: string | null = null;
 
 export async function ensureOpenCodeServer(
   config: OpenCodeSdkConfig,
 ): Promise<{ client: OpencodeClient; serverHandle: OpenCodeServerHandle | null }> {
+  // External server — no lifecycle management needed
   if (config.serverUrl) {
+    externalUrl = config.serverUrl;
     log.info(`Connecting to external OpenCode server at ${config.serverUrl}`);
     const client = createOpencodeClient({ baseUrl: config.serverUrl });
     return { client, serverHandle: null };
   }
 
-  // Start embedded server if not already running
-  if (!embeddedServer) {
-    log.info('Starting embedded OpenCode server');
-    const server = await createOpencodeServer({
-      hostname: config.hostname ?? '127.0.0.1',
-      port: config.port ?? 0, // 0 = random port
-    });
-    embeddedServer = server;
-    log.info(`Embedded OpenCode server started at ${server.url}`);
+  // If a previous call connected to an external URL, reuse it
+  if (externalUrl) {
+    const client = createOpencodeClient({ baseUrl: externalUrl });
+    return { client, serverHandle: null };
   }
 
-  const client = createOpencodeClient({ baseUrl: embeddedServer.url });
-  return { client, serverHandle: embeddedServer };
+  // Embedded server — deduplicate concurrent init calls with a shared promise
+  if (!initPromise) {
+    initPromise = (async () => {
+      log.info('Starting embedded OpenCode server');
+      const server = await createOpencodeServer({
+        hostname: config.hostname ?? '127.0.0.1',
+        port: config.port ?? 0, // 0 = random port
+      });
+      embeddedServer = server;
+      log.info(`Embedded OpenCode server started at ${server.url}`);
+      const client = createOpencodeClient({ baseUrl: server.url });
+      return { client, serverHandle: server };
+    })();
+  }
+
+  return initPromise;
 }
 
 export function shutdownEmbeddedServer() {
@@ -97,6 +110,8 @@ export function shutdownEmbeddedServer() {
     embeddedServer.close();
     embeddedServer = null;
   }
+  initPromise = null;
+  externalUrl = null;
 }
 
 // ── Run a single agent via SDK ────────────────────────────────────────
@@ -175,7 +190,7 @@ export async function runOpenCodeSdk(options: {
       body: {
         parts: [{ type: 'text', text: wrappedPrompt }],
         tools: toolsMap,
-        system: 'You are participating in a multi-agent council. Research and answer thoroughly. Return your plan as markdown text. Do NOT write, modify, create, or delete any files.',
+        system: 'You are a research advisor in a multi-agent council. Your ONLY job is to propose a plan — NEVER implement it. Return your plan as markdown text in your response. NEVER write, edit, create, or delete files. NEVER use write/edit/bash tools. You may only use read-only tools (read, glob, grep, web search).',
         ...(modelSpec ? { model: modelSpec } : {}),
       },
     });
