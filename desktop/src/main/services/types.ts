@@ -131,6 +131,15 @@ export interface OpenCodeSdkConfig {
   port?: number;
 }
 
+export interface CodexSdkConfig {
+  /** Override the codex binary path (optional) */
+  codexPath?: string;
+  /** Override the API base URL (optional) */
+  baseUrl?: string;
+  /** Override the API key (optional, defaults to env) */
+  apiKey?: string;
+}
+
 export interface StartRunConfig {
   prompt: string;
   agents: AgentId[];
@@ -139,4 +148,6 @@ export interface StartRunConfig {
   agentInstances?: AgentInstance[];
   /** When set, OpenCode agents use the SDK client instead of CLI subprocess */
   opencodeSdk?: OpenCodeSdkConfig;
+  /** When set, Codex agents use the SDK instead of CLI subprocess */
+  codexSdk?: CodexSdkConfig;
 }

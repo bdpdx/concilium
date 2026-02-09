@@ -6,7 +6,7 @@
 
 import { ipcMain, clipboard, type BrowserWindow } from 'electron';
 import { randomUUID } from 'node:crypto';
-import type { AgentConfig, AgentInstance, OpenCodeSdkConfig, StartRunConfig, Stage1Result } from './services/types';
+import type { AgentConfig, AgentInstance, CodexSdkConfig, OpenCodeSdkConfig, StartRunConfig, Stage1Result } from './services/types';
 import {
   getCouncilConfig,
   getCouncilConfigSync,
@@ -215,6 +215,17 @@ export function registerIpcHandlers(mainWindow: BrowserWindow, projectCwd: strin
           log.info('run:start: OpenCode SDK mode enabled', opencodeSdkConfig);
         }
 
+        // Resolve Codex SDK config: env vars take precedence, then params
+        const codexSdkConfig: CodexSdkConfig | undefined = (() => {
+          if (process.env.CODEX_SDK_ENABLED === 'true') return {};
+          if (params.codexSdk) return params.codexSdk;
+          return undefined;
+        })();
+
+        if (codexSdkConfig) {
+          log.info('run:start: Codex SDK mode enabled', codexSdkConfig);
+        }
+
         const agentResults = await runAgentsParallel({
           agents: agentConfigs,
           prompt: params.prompt,
@@ -227,6 +238,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow, projectCwd: strin
           },
           controller,
           opencodeSdk: opencodeSdkConfig,
+          codexSdk: codexSdkConfig,
         });
 
         if (controller.isCancelled) {
