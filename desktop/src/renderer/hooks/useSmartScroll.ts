@@ -5,41 +5,66 @@ import { useRef, useEffect, useCallback, useState } from 'react';
  * near the bottom, but stops auto-scrolling when the user scrolls up to
  * read earlier content. Re-engages when the user scrolls back to the bottom
  * (or clicks "scroll to bottom").
+ *
+ * Uses requestAnimationFrame to debounce scroll checks and avoid layout
+ * thrashing from reading scrollHeight on every scroll event.
  */
 export function useSmartScroll<T>(dep: T) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const rafCheckRef = useRef(0);
+  const rafScrollRef = useRef(0);
 
   // Threshold in pixels: if the user is within this distance of the bottom,
   // we consider them "at the bottom" and keep auto-scrolling.
   const THRESHOLD = 60;
 
-  const checkIfAtBottom = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < THRESHOLD;
-    isAtBottomRef.current = atBottom;
-    setShowScrollButton(!atBottom);
+  // Debounced scroll-position check via rAF to avoid layout thrashing.
+  // Multiple scroll events in the same frame collapse into one DOM read.
+  const onScroll = useCallback(() => {
+    if (rafCheckRef.current) return; // already scheduled
+    rafCheckRef.current = requestAnimationFrame(() => {
+      rafCheckRef.current = 0;
+      const el = scrollRef.current;
+      if (!el) return;
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < THRESHOLD;
+      isAtBottomRef.current = atBottom;
+      setShowScrollButton(!atBottom);
+    });
   }, []);
 
-  // Listen for user scroll events to detect manual scroll-up
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
 
-    el.addEventListener('scroll', checkIfAtBottom, { passive: true });
-    return () => el.removeEventListener('scroll', checkIfAtBottom);
-  }, [checkIfAtBottom]);
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      if (rafCheckRef.current) cancelAnimationFrame(rafCheckRef.current);
+    };
+  }, [onScroll]);
 
-  // Auto-scroll when dependency changes, but only if user is at bottom
+  // Auto-scroll when dependency changes, but only if user is at bottom.
+  // Batched via rAF so multiple dep changes per frame cause one scroll.
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    if (isAtBottomRef.current) {
-      el.scrollTop = el.scrollHeight;
-    }
+    if (!isAtBottomRef.current) return;
+    if (rafScrollRef.current) return; // already scheduled
+    rafScrollRef.current = requestAnimationFrame(() => {
+      rafScrollRef.current = 0;
+      const el = scrollRef.current;
+      if (el && isAtBottomRef.current) {
+        el.scrollTop = el.scrollHeight;
+      }
+    });
   }, [dep]);
+
+  // Cleanup rAF on unmount
+  useEffect(() => {
+    return () => {
+      if (rafScrollRef.current) cancelAnimationFrame(rafScrollRef.current);
+    };
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;

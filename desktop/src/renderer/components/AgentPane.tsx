@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useRef, useMemo } from 'react';
 import MarkdownRenderer from './MarkdownRenderer';
 import { useSmartScroll } from '../hooks/useSmartScroll';
 import type { ParsedEvent, TokenUsage } from '../types';
@@ -95,10 +95,95 @@ function groupEvents(events: ParsedEvent[], showRawDetails: boolean): StreamChun
   return chunks;
 }
 
-export default function AgentPane({ name, events, status, elapsed, tokenUsage, focused, onClick, onAbort, showRawDetails = false }: AgentPaneProps) {
+/**
+ * Incrementally group events: only process newly appended events and merge
+ * into the existing chunk list. Falls back to full recompute if showRawDetails
+ * changes or events were reset (e.g. different agent).
+ */
+function useIncrementalChunks(events: ParsedEvent[], showRawDetails: boolean): StreamChunk[] {
+  const cacheRef = useRef<{
+    chunks: StreamChunk[];
+    processedCount: number;
+    showRaw: boolean;
+  }>({ chunks: [], processedCount: 0, showRaw: false });
+
+  return useMemo(() => {
+    const cache = cacheRef.current;
+
+    // Full recompute if showRawDetails toggled or events were replaced/reset
+    if (cache.showRaw !== showRawDetails || events.length < cache.processedCount) {
+      const result = groupEvents(events, showRawDetails);
+      cacheRef.current = { chunks: result, processedCount: events.length, showRaw: showRawDetails };
+      return result;
+    }
+
+    // No new events → return cached
+    if (events.length === cache.processedCount) {
+      return cache.chunks;
+    }
+
+    // Process only new events
+    const newEvents = events.slice(cache.processedCount);
+    const chunks = [...cache.chunks];
+
+    // If the last cached chunk is markdown and the first new event is text,
+    // extend that chunk instead of creating a new one
+    let mdBuffer = '';
+    if (
+      chunks.length > 0 &&
+      chunks[chunks.length - 1].kind === 'markdown' &&
+      newEvents[0]?.eventType === 'text'
+    ) {
+      const last = chunks.pop() as { kind: 'markdown'; content: string };
+      mdBuffer = last.content;
+    }
+
+    const flushMd = () => {
+      if (mdBuffer) {
+        chunks.push({ kind: 'markdown', content: mdBuffer });
+        mdBuffer = '';
+      }
+    };
+
+    for (const ev of newEvents) {
+      switch (ev.eventType) {
+        case 'text':
+          mdBuffer += ev.text;
+          break;
+        case 'tool_call':
+          flushMd();
+          chunks.push({ kind: 'tool', text: ev.text });
+          break;
+        case 'thinking':
+          flushMd();
+          chunks.push({ kind: 'thinking', text: ev.text });
+          break;
+        case 'status':
+          flushMd();
+          chunks.push({ kind: 'status', text: ev.text });
+          break;
+        default: {
+          flushMd();
+          const lower = ev.rawLine?.toLowerCase() ?? '';
+          if (lower.includes('error') || lower.includes('fail')) {
+            chunks.push({ kind: 'error', text: ev.text || ev.rawLine });
+          } else if (showRawDetails) {
+            chunks.push({ kind: 'raw', text: ev.text || ev.rawLine });
+          }
+        }
+      }
+    }
+    flushMd();
+
+    cacheRef.current = { chunks, processedCount: events.length, showRaw: showRawDetails };
+    return chunks;
+  }, [events, showRawDetails]);
+}
+
+export default memo(function AgentPane({ name, events, status, elapsed, tokenUsage, focused, onClick, onAbort, showRawDetails = false }: AgentPaneProps) {
   const { scrollRef, showScrollButton, scrollToBottom } = useSmartScroll(events.length);
 
-  const chunks = useMemo(() => groupEvents(events, showRawDetails), [events, showRawDetails]);
+  const chunks = useIncrementalChunks(events, showRawDetails);
 
   const isRunning = status === 'running';
   const isError = status === 'error';
@@ -158,7 +243,7 @@ export default function AgentPane({ name, events, status, elapsed, tokenUsage, f
           {chunks.map((chunk, i) => {
             switch (chunk.kind) {
               case 'markdown':
-                return <MarkdownRenderer key={i} content={chunk.content} className="text-[11px]" />;
+                return <MarkdownRenderer key={i} content={chunk.content} className="text-[11px]" streaming={isRunning} />;
               case 'tool':
                 return (
                   <div key={i} className="flex items-start gap-2 py-0.5 font-mono text-[11px] leading-relaxed">
@@ -169,7 +254,7 @@ export default function AgentPane({ name, events, status, elapsed, tokenUsage, f
               case 'thinking':
                 return (
                   <div key={i} className="py-0.5 [&_.markdown-content]:italic [&_.markdown-content_*]:!text-amber-warning">
-                    <MarkdownRenderer content={chunk.text} className="text-[11px]" />
+                    <MarkdownRenderer content={chunk.text} className="text-[11px]" streaming={isRunning} />
                   </div>
                 );
               case 'status':
@@ -219,4 +304,4 @@ export default function AgentPane({ name, events, status, elapsed, tokenUsage, f
       </div>
     </div>
   );
-}
+});

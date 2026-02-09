@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import TitleBar from '../components/TitleBar';
 import StageProgress from '../components/StageProgress';
 import AgentPane from '../components/AgentPane';
@@ -26,7 +26,7 @@ interface JurorCardProps {
   onToggleExpanded: () => void;
 }
 
-function JurorCard({ model, juror, jurorLabel, expanded, onToggleExpanded }: JurorCardProps) {
+const JurorCard = memo(function JurorCard({ model, juror, jurorLabel, expanded, onToggleExpanded }: JurorCardProps) {
   const hasContent = juror.textContent.trim().length > 0;
   const status = juror.status;
   const { scrollRef: bodyRef, showScrollButton, scrollToBottom } = useSmartScroll(juror.textContent);
@@ -70,7 +70,7 @@ function JurorCard({ model, juror, jurorLabel, expanded, onToggleExpanded }: Jur
         >
           {hasContent ? (
             <div>
-              <MarkdownRenderer content={juror.textContent} className="text-xs" />
+              <MarkdownRenderer content={juror.textContent} className="text-xs" streaming={status === 'evaluating'} />
               {status === 'evaluating' && (
                 <span className="inline-block w-1.5 h-3.5 bg-amber-warning animate-pulse rounded-sm align-middle ml-0.5" />
               )}
@@ -100,7 +100,7 @@ function JurorCard({ model, juror, jurorLabel, expanded, onToggleExpanded }: Jur
       </div>
     </div>
   );
-}
+});
 
 export default function RunningScreen({ runId, initialAgents, onComplete, onCancel }: RunningScreenProps) {
   // Stage navigation state (1-3 for running stages, 4 for results)

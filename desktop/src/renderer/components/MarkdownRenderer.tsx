@@ -1,4 +1,5 @@
-import ReactMarkdown from 'react-markdown';
+import { memo } from 'react';
+import { Streamdown } from 'streamdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -6,12 +7,14 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 interface MarkdownRendererProps {
   content: string;
   className?: string;
+  streaming?: boolean;
 }
 
-export default function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {
+export default memo(function MarkdownRenderer({ content, className = '', streaming = false }: MarkdownRendererProps) {
   return (
     <div className={`markdown-content prose prose-invert prose-sm max-w-none ${className}`}>
-      <ReactMarkdown
+      <Streamdown
+        mode={streaming ? 'streaming' : 'static'}
         remarkPlugins={[remarkGfm]}
         components={{
           code({ className: codeClassName, children, ...props }) {
@@ -62,7 +65,7 @@ export default function MarkdownRenderer({ content, className = '' }: MarkdownRe
         }}
       >
         {content}
-      </ReactMarkdown>
+      </Streamdown>
     </div>
   );
-}
+});
