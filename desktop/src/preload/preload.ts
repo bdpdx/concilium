@@ -45,8 +45,15 @@ export interface StartRunResult {
   initialAgents: Array<{ key: string; name: string }>;
 }
 
+export interface OpenCodeSdkConfig {
+  serverUrl?: string;
+  embedded?: boolean;
+  hostname?: string;
+  port?: number;
+}
+
 export interface ElectronAPI {
-  startRun(config: { prompt: string; agents: string[]; mode?: string; agentModels?: Record<string, string>; agentInstances?: AgentInstance[] }): Promise<StartRunResult>;
+  startRun(config: { prompt: string; agents: string[]; mode?: string; agentModels?: Record<string, string>; agentInstances?: AgentInstance[]; opencodeSdk?: OpenCodeSdkConfig }): Promise<StartRunResult>;
   cancelRun(runId: string): Promise<void>;
   abortAgent(runId: string, agentKey: string): Promise<{ success: boolean; error?: string }>;
   listRuns(): Promise<Array<{ id: string; createdAt: string; promptPreview: string; status: string }>>;

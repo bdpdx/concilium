@@ -6,8 +6,8 @@
 
 import { ipcMain, clipboard, type BrowserWindow } from 'electron';
 import { randomUUID } from 'node:crypto';
-import type { AgentConfig, AgentInstance, StartRunConfig, Stage1Result } from './services/types';
-import { 
+import type { AgentConfig, AgentInstance, OpenCodeSdkConfig, StartRunConfig, Stage1Result } from './services/types';
+import {
   getCouncilConfig,
   getCouncilConfigSync,
   getCouncilConfigPrefs,
@@ -25,6 +25,7 @@ import {
 import { fetchOpenRouterModels } from './services/openrouter';
 import { RunController, runAgentsParallel, discoverModelsForAllAgents } from './services/runner';
 import { runCouncilStages } from './services/pipeline';
+import { shutdownEmbeddedServer } from './services/opencode-client';
 import { createLogger } from './services/logger';
 
 const log = createLogger('ipc');
@@ -33,13 +34,17 @@ const activeControllers = new Map<string, RunController>();
 
 /** Kill every tracked child process. Called on app quit / signals. */
 export function cancelAllRuns() {
-  if (activeControllers.size === 0) return;
+  if (activeControllers.size === 0) {
+    shutdownEmbeddedServer();
+    return;
+  }
   log.info(`cancelAllRuns: killing ${activeControllers.size} active run(s)`);
   for (const [runId, controller] of activeControllers) {
     log.debug(`cancelAllRuns: cancelling run ${runId}`);
     controller.cancel();
   }
   activeControllers.clear();
+  shutdownEmbeddedServer();
 }
 
 export function registerIpcHandlers(mainWindow: BrowserWindow, projectCwd: string) {
@@ -196,6 +201,20 @@ export function registerIpcHandlers(mainWindow: BrowserWindow, projectCwd: strin
           send('agent:status', key, 'queued', cfg.name);
         }
 
+        // Resolve OpenCode SDK config: env vars take precedence, then params
+        const opencodeSdkConfig: OpenCodeSdkConfig | undefined = (() => {
+          const envUrl = process.env.OPENCODE_SERVER_URL;
+          if (envUrl) return { serverUrl: envUrl };
+          if (params.opencodeSdk) return params.opencodeSdk;
+          // Auto-detect: if OPENCODE_SDK_EMBEDDED is set, use embedded server
+          if (process.env.OPENCODE_SDK_EMBEDDED === 'true') return { embedded: true };
+          return undefined;
+        })();
+
+        if (opencodeSdkConfig) {
+          log.info('run:start: OpenCode SDK mode enabled', opencodeSdkConfig);
+        }
+
         const agentResults = await runAgentsParallel({
           agents: agentConfigs,
           prompt: params.prompt,
@@ -207,6 +226,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow, projectCwd: strin
             onEvent: (agentKey, event) => send('agent:event', agentKey, event),
           },
           controller,
+          opencodeSdk: opencodeSdkConfig,
         });
 
         if (controller.isCancelled) {

@@ -1,8 +1,9 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import type { AgentConfig, AgentId, AgentResult, AgentStatus, ParsedEvent } from './types';
+import type { AgentConfig, AgentId, AgentResult, AgentStatus, OpenCodeSdkConfig, ParsedEvent } from './types';
 import { buildCommand, mergedEnv } from './commands';
 import { parseEventLine } from './parsers';
+import { runOpenCodeSdk } from './opencode-client';
 import { createLogger } from './logger';
 
 const log = createLogger('runner');
@@ -88,20 +89,31 @@ export async function runAgentsParallel(options: {
   prompt: string;
   callbacks: RunnerCallbacks;
   controller?: RunController;
+  /** When set, OpenCode agents use the SDK client instead of CLI subprocess */
+  opencodeSdk?: OpenCodeSdkConfig;
 }): Promise<AgentResult[]> {
   log.info(`runAgentsParallel: starting ${options.agents.length} agents`);
   log.debug(`runAgentsParallel: agents:`, options.agents.map(a => a.name));
-  
+  if (options.opencodeSdk) {
+    log.info('runAgentsParallel: OpenCode SDK mode enabled');
+  }
+
   const controller = options.controller ?? new RunController();
   const tasks = options.agents.map((agent) =>
-    runSingleAgent({ agent, prompt: options.prompt, callbacks: options.callbacks, controller }),
+    runSingleAgent({
+      agent,
+      prompt: options.prompt,
+      callbacks: options.callbacks,
+      controller,
+      opencodeSdk: options.opencodeSdk,
+    }),
   );
-  
+
   const results = await Promise.all(tasks);
-  
+
   const successCount = results.filter(r => r.status === 'success').length;
   log.info(`runAgentsParallel: completed - ${successCount}/${results.length} succeeded`);
-  
+
   return results;
 }
 
@@ -110,7 +122,38 @@ async function runSingleAgent(options: {
   prompt: string;
   callbacks: RunnerCallbacks;
   controller: RunController;
+  opencodeSdk?: OpenCodeSdkConfig;
 }): Promise<AgentResult> {
+  // Route OpenCode agents through the SDK when configured
+  if (options.agent.id === 'opencode' && options.opencodeSdk) {
+    const abortController = new AbortController();
+    const agentKey = options.agent.instanceId ?? options.agent.id;
+
+    // Register an abort mechanism so the RunController can cancel SDK runs
+    const pseudoChild = {
+      pid: undefined,
+      kill: () => abortController.abort(),
+    } as unknown as ChildProcess;
+    options.controller.register(agentKey, pseudoChild);
+
+    try {
+      const result = await runOpenCodeSdk({
+        agent: options.agent,
+        prompt: options.prompt,
+        callbacks: options.callbacks,
+        sdkConfig: options.opencodeSdk,
+        abortSignal: abortController.signal,
+      });
+
+      if (options.controller.isCancelled) {
+        result.status = 'cancelled';
+      }
+      return result;
+    } finally {
+      options.controller.unregister(agentKey);
+    }
+  }
+
   const spec = buildCommand({
     agentId: options.agent.id,
     cwd: options.agent.cwd,
